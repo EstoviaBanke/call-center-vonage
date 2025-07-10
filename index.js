@@ -1,4 +1,5 @@
-// call-center-vonage/index.js with full multi-language IVR support
+// call-center-vonage/index.js – Full Multi-language IVR with music and voicemail fallback
+
 const express = require('express');
 const bodyParser = require('body-parser');
 
@@ -20,7 +21,7 @@ const voices = {
 };
 
 const prompts = {
-  '1': { // English
+  '1': {
     welcome: 'Welcome to Estovia Bank. For English, press 1. Para español, presione 2. Для обслуживания на русском языке нажмите 3.',
     accountType: 'Our menu has changed. Please listen carefully. Press 1 if you are a business account holder. Press 2 for personal account holder. Press 3 to open a new account.',
     newAccount: 'To open a new account, please fill out the application form on our website. Alternatively, leave your full name, email address, phone number, and physical address after the tone. An invitation will be sent to you.',
@@ -43,7 +44,7 @@ const prompts = {
     },
     voicemail: 'All agents are currently unavailable. Please leave a message after the tone.'
   },
-  '2': { // Spanish
+  '2': {
     welcome: 'Bienvenido a Estovia Bank. Para inglés, presione 1. Para español, presione 2. Для обслуживания на русском языке нажмите 3.',
     accountType: 'Nuestro menú ha cambiado. Escuche con atención. Presione 1 si tiene una cuenta de negocios. Presione 2 si tiene una cuenta personal. Presione 3 para abrir una nueva cuenta.',
     newAccount: 'Para abrir una nueva cuenta, complete la solicitud en nuestro sitio web. También puede dejar su nombre completo, correo electrónico, número de teléfono y dirección después del tono. Le enviaremos una invitación.',
@@ -66,7 +67,7 @@ const prompts = {
     },
     voicemail: 'Todos los representantes están ocupados. Por favor, deje un mensaje después del tono.'
   },
-  '3': { // Russian
+  '3': {
     welcome: 'Добро пожаловать в банк Эстовия. Для английского нажмите 1. Для испанского нажмите 2. Для русского нажмите 3.',
     accountType: 'Наше меню изменилось. Пожалуйста, внимательно прослушайте. Нажмите 1, если у вас бизнес-счет. Нажмите 2, если у вас личный счет. Нажмите 3, чтобы открыть новый счет.',
     newAccount: 'Чтобы открыть новый счет, заполните форму на нашем сайте. Или оставьте свое имя, адрес электронной почты, номер телефона и адрес после сигнала. Мы отправим вам приглашение.',
@@ -92,41 +93,42 @@ const prompts = {
 };
 
 app.get('/webhooks/answer', (req, res) => {
-  const ncco = [
+  res.json([
     { action: 'talk', voiceName: 'Amy', text: prompts['1'].welcome },
-    { action: 'input', maxDigits: 1, eventUrl: [`${req.protocol}://${req.get('host')}/webhooks/account-type`] }
-  ];
-  res.json(ncco);
+    { action: 'input', maxDigits: 1, eventUrl: ['https://call-center-vonage.onrender.com/webhooks/account-type'] }
+  ]);
 });
 
 app.post('/webhooks/account-type', (req, res) => {
   const digit = req.body.dtmf;
   const lang = ['1', '2', '3'].includes(digit) ? digit : '1';
   const voice = voices[lang];
-  const ncco = [
+
+  res.json([
     { action: 'talk', voiceName: voice, text: prompts[lang].accountType },
-    { action: 'input', maxDigits: 1, eventUrl: [`${req.protocol}://${req.get('host')}/webhooks/submenu?lang=${lang}`] }
-  ];
-  res.json(ncco);
+    { action: 'input', maxDigits: 1, eventUrl: [`https://call-center-vonage.onrender.com/webhooks/submenu?lang=${lang}`] }
+  ]);
 });
 
 app.post('/webhooks/submenu', (req, res) => {
   const type = req.body.dtmf;
   const lang = req.query.lang;
   const voice = voices[lang];
+
   if (type === '3') {
     return res.json([
       { action: 'talk', voiceName: voice, text: prompts[lang].newAccount },
-      { action: 'record', endOnSilence: 3, timeout: 120, beepStart: true, eventUrl: [`${req.protocol}://${req.get('host')}/webhooks/voicemail`] },
+      { action: 'record', endOnSilence: 3, timeout: 120, beepStart: true, eventUrl: ['https://call-center-vonage.onrender.com/webhooks/voicemail'] },
       { action: 'talk', voiceName: voice, text: prompts[lang].thankYou }
     ]);
   }
+
   const isBusiness = type === '1';
-  const ncco = [
+
+  res.json([
     { action: 'talk', voiceName: voice, text: prompts[lang].submenu(isBusiness) },
-    { action: 'input', maxDigits: 1, eventUrl: [`${req.protocol}://${req.get('host')}/webhooks/handle-selection?type=${type}&lang=${lang}`] }
-  ];
-  res.json(ncco);
+    { action: 'input', maxDigits: 1, eventUrl: [`https://call-center-vonage.onrender.com/webhooks/handle-selection?type=${type}&lang=${lang}`] }
+  ]);
 });
 
 app.post('/webhooks/handle-selection', (req, res) => {
@@ -135,23 +137,41 @@ app.post('/webhooks/handle-selection', (req, res) => {
   const lang = req.query.lang;
   const voice = voices[lang];
   const isBusiness = type === '1';
-  const message = typeof prompts[lang].selections[digit] === 'function' ? prompts[lang].selections[digit](isBusiness) : prompts[lang].selections[digit] || 'Invalid option.';
+  const message = typeof prompts[lang].selections[digit] === 'function'
+    ? prompts[lang].selections[digit](isBusiness)
+    : prompts[lang].selections[digit] || 'Invalid option.';
 
-  const ncco = [ { action: 'talk', voiceName: voice, text: message } ];
+  const ncco = [{ action: 'talk', voiceName: voice, text: message }];
 
   if (digit === '0' || ['1', '2', '4'].includes(digit)) {
+    ncco.push({
+      action: 'stream',
+      streamUrl: ['https://cdn.vonage.com/music/voice_api_audio_1.mp3']
+    });
+
     agentNumbers.forEach(number => {
       ncco.push({
-        action: 'connect', timeout: 25, from: 'VonageNumber', endpoint: [{ type: 'phone', number }]
+        action: 'connect',
+        timeout: 25,
+        from: 'VonageNumber',
+        endpoint: [{ type: 'phone', number }]
       });
     });
+
     ncco.push({ action: 'talk', voiceName: voice, text: prompts[lang].voicemail });
+
     ncco.push({
-      action: 'record', endOnSilence: 3, timeout: 120, beepStart: true,
-      eventUrl: [`${req.protocol}://${req.get('host')}/webhooks/voicemail`]
+      action: 'record',
+      endOnSilence: 3,
+      timeout: 120,
+      beepStart: true,
+      eventUrl: ['https://call-center-vonage.onrender.com/webhooks/voicemail']
     });
   } else if (digit === '9') {
-    ncco.push({ action: 'redirect', destination: { type: 'ncco', url: [`${req.protocol}://${req.get('host')}/webhooks/answer`] } });
+    ncco.push({
+      action: 'redirect',
+      destination: { type: 'ncco', url: ['https://call-center-vonage.onrender.com/webhooks/answer'] }
+    });
   }
 
   res.json(ncco);
