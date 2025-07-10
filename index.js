@@ -11,7 +11,7 @@ app.get('/webhooks/answer', (req, res) => {
   const ncco = [
     {
       action: 'talk',
-      text: 'Welcome to Estovia Bank. This call may be recorded. Our online banking platform is full updated and ready to give you a convinient self service. Our wait time might be longer than usual due to high call volume. Please hold while we connect you to a representative, Thank you.'
+      text: 'Welcome to Estovia Bank. This call may be recorded for quality assurance and training purposes. Our online banking platform is fully updated and offers a convenient self-service experience, accessible 24 hours a day. Due to an unusually high call volume, your wait time may be longer than expected. Please remain on the line while we attempt to connect you to an available representative. Thank you for your patience.'
     },
     {
       action: 'stream',
@@ -19,27 +19,45 @@ app.get('/webhooks/answer', (req, res) => {
     },
     {
       action: 'connect',
-      timeout: 20,
+      timeout: 40,
       from: req.query.to,
       endpoint: [{
         type: 'phone',
-        number: '+17712185587' // ✅ Your agent's number
+        number: '+12057093036' // Agent 1
+      }]
+    },
+    {
+      action: 'connect',
+      timeout: 40,
+      from: req.query.to,
+      endpoint: [{
+        type: 'phone',
+        number: '+17712185587' // Agent 2
+      }]
+    },
+    {
+      action: 'connect',
+      timeout: 40,
+      from: req.query.to,
+      endpoint: [{
+        type: 'phone',
+        number: '+15393027513' // Agent 3
       }]
     },
     {
       action: 'talk',
-      text: 'There is no agent available at this time, as they are currently attending to other customers. Kindly leave a voicemail with your phone number, full name, and reason for your call. A customer care representative will give you a call back. For fast service, you can use the support ticket system on the official banking website and a representative will get back to you shortly. At the tone leave your message, when you are done you can hang-up.'
+      text: 'At this time, all our representatives are currently attending to other customers. We apologize for the inconvenience. Please leave a voicemail including your full name, phone number, and the reason for your call. A customer care representative will return your call as soon as possible. For faster support, you may also submit a ticket on our official banking website. After the tone, please leave your message. You may hang up when finished.'
     },
     {
       action: 'record',
       endOnSilence: 3,
-      timeout: 60,
+      timeout: 120, // 2 minutes
       beepStart: true,
       eventUrl: ['https://call-center-vonage.onrender.com/webhooks/voicemail']
     },
     {
       action: 'talk',
-      text: 'Thank you. Goodbye.'
+      text: 'Thank you. Your message has been received. Goodbye.'
     }
   ];
   res.json(ncco);
