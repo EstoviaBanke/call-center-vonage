@@ -1,4 +1,4 @@
-// call-center-vonage/index.js – Full Multi-language IVR with music and voicemail fallback
+// call-center-vonage/index.js – Full Multi-language IVR with music and voicemail fallback (Fixed)
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -35,10 +35,10 @@ const prompts = {
       'Press 0 to speak to a representative.'
     ].join(' '),
     selections: {
-      '1': (isBusiness) => `To better assist you, please have your ${isBusiness ? 'business' : 'personal'} account number, full name, and address handy while we connect you to a representative.`,
-      '2': 'Please secure your account immediately. A representative will help you block your card and request a replacement.',
-      '3': 'Please describe the suspicious activity after the tone or submit a report through our fraud portal online.',
-      '4': 'Our investment team will speak with you shortly. Please have your account documents ready.',
+      '1': (isBusiness) => `To better assist you, please have your ${isBusiness ? 'business' : 'personal'} account number, full name, and address ready while we connect you to a representative.`,
+      '2': 'Please secure your account immediately. A representative will help you block your card and issue a replacement.',
+      '3': 'Please describe the suspicious activity after the tone or report it through our online fraud portal.',
+      '4': 'Our investment team will speak with you shortly. Please have your documents ready.',
       '9': 'Returning to the main menu.',
       '0': 'Connecting you to a representative now. Please hold.'
     },
@@ -144,22 +144,15 @@ app.post('/webhooks/handle-selection', (req, res) => {
   const ncco = [{ action: 'talk', voiceName: voice, text: message }];
 
   if (digit === '0' || ['1', '2', '4'].includes(digit)) {
-    ncco.push({
-      action: 'stream',
-      streamUrl: ['https://cdn.vonage.com/music/voice_api_audio_1.mp3']
-    });
-
     agentNumbers.forEach(number => {
       ncco.push({
         action: 'connect',
         timeout: 25,
-        from: 'VonageNumber',
         endpoint: [{ type: 'phone', number }]
       });
     });
 
     ncco.push({ action: 'talk', voiceName: voice, text: prompts[lang].voicemail });
-
     ncco.push({
       action: 'record',
       endOnSilence: 3,
