@@ -6,54 +6,80 @@ const port = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-// Main IVR Answer Webhook
+// Main call answer webhook with hold music and callback prompt
 app.get('/webhooks/answer', (req, res) => {
+  const streamUrl = 'https://www.dropbox.com/scl/fi/59fvmdh0kvo9majz7eua6/On-My-Way-Home-Sting-The-126ers.mp3?raw=1';
+
+  const holdLoop = [];
+
+  for (let i = 0; i < 8; i++) {
+    holdLoop.push(
+      {
+        action: 'stream',
+        streamUrl: [streamUrl]
+      },
+      {
+        action: 'talk',
+        voiceName: 'Amy',
+        text: 'We are still trying to connect you to a representative. Please stay on the line.'
+      }
+    );
+  }
+
   const ncco = [
     {
       action: 'talk',
-      text: 'Welcome to Estovia Bank. This call may be recorded for quality assurance and training purposes. Due to unusually high call volume, your wait time may be longer than expected. Please hold while we connect you to a representative.',
-      voiceName: 'Amy'
+      voiceName: 'Amy',
+      text: 'Welcome to Estovia Bank. This call may be recorded for quality assurance and training purposes. Due to high call volume, your wait time may be longer than expected.'
+    },
+    ...holdLoop,
+    {
+      action: 'talk',
+      voiceName: 'Amy',
+      text: 'We are currently unable to connect you to a representative. If you would like a callback, press 1 now. Or visit our website to submit a support ticket.'
     },
     {
-      action: 'connect',
-      timeout: 20,
-      from: req.query.to,
-      eventUrl: ['https://call-center-vonage.onrender.com/webhooks/connect-event'],
-      ringbackTone: 'https://www.dropbox.com/scl/fi/59fvmdh0kvo9majz7eua6/On-My-Way-Home-Sting-The-126ers.mp3?rlkey=kxn89hbl0yau76oc9kg1vvvrk&raw=1',
-      endpoint: [{
-        type: 'phone',
-        number: '+17712185587'
-      }]
+      action: 'input',
+      maxDigits: 1,
+      timeout: 7,
+      eventUrl: ['https://call-center-vonage.onrender.com/webhooks/callback-request']
     }
   ];
 
   res.json(ncco);
 });
 
-// Connection Event Webhook
-app.post('/webhooks/connect-event', (req, res) => {
-  const status = req.body.status;
+// Callback request handler (logs caller number)
+app.post('/webhooks/callback-request', (req, res) => {
+  const digit = req.body.dtmf;
+  const caller = req.body.from;
 
-  if (status === 'failed' || status === 'busy' || status === 'unanswered' || status === 'timeout') {
-    // Connection failed — return fallback NCCO
-    res.json([
+  if (digit === '1') {
+    console.log(`📞 Callback requested from ${caller}`);
+    return res.json([
       {
         action: 'talk',
-        text: 'We were unable to connect you to a representative at this time. Please try again later or use our online support system for faster assistance. Goodbye.',
-        voiceName: 'Amy'
+        voiceName: 'Amy',
+        text: 'Thank you. A representative will call you back shortly. Goodbye.'
       }
     ]);
-  } else {
-    res.sendStatus(200); // Do nothing if successful
   }
+
+  res.json([
+    {
+      action: 'talk',
+      voiceName: 'Amy',
+      text: 'Thank you for calling Estovia Bank. Goodbye.'
+    }
+  ]);
 });
 
-// Optional Call Event Logger
+// Call event logger (optional for analytics)
 app.post('/webhooks/event', (req, res) => {
   console.log('📞 Call event:', req.body);
   res.sendStatus(200);
 });
 
 app.listen(port, () => {
-  console.log(`📡 Vonage Call Center live at http://localhost:${port}`);
+  console.log(`📡 Vonage Call Center server is running at http://localhost:${port}`);
 });
